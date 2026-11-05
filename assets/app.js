@@ -23,6 +23,9 @@
     muted: false,
     key: "",
     provider: "pollinations",
+    engine: "cloud",
+    localBrain: false,
+    kokoroVoice: null,   // null = decide by hardware
     busy: false,
     listening: false,
     speaking: false,
@@ -132,6 +135,7 @@
         subject: state.subject, mode: state.mode, lang: state.lang,
         rate: state.rate, voiceName: state.voiceName, handsFree: state.handsFree,
         key: state.key, provider: state.provider,
+        engine: state.engine, localBrain: state.localBrain, kokoroVoice: state.kokoroVoice,
       }));
     } catch (e) { /* storage full or blocked — ignore */ }
   }
@@ -139,10 +143,12 @@
     try {
       const d = JSON.parse(localStorage.getItem(LS) || "{}");
       if (Array.isArray(d.messages)) state.messages = d.messages;
-      ["subject", "mode", "lang", "rate", "voiceName", "key", "provider"].forEach(k => {
+      ["subject", "mode", "lang", "rate", "voiceName", "key", "provider", "engine"].forEach(k => {
         if (d[k] !== undefined) state[k] = d[k];
       });
       if (d.handsFree !== undefined) state.handsFree = !!d.handsFree;
+      if (d.localBrain !== undefined) state.localBrain = !!d.localBrain;
+      if (d.kokoroVoice !== undefined) state.kokoroVoice = d.kokoroVoice;
     } catch (e) { /* ignore */ }
   }
 
@@ -371,8 +377,33 @@ ${ctx}`;
     return parts;
   }
 
+  let localSpeakToken = 0;
+
+  function wantsKokoro() {
+    if (state.engine !== "local" || !window.SakhaLocal || !SakhaLocal.ttsReady()) return false;
+    if (state.kokoroVoice === null) return SakhaLocal.hasWebGPU();  // GPU: worth it, CPU: too slow
+    return !!state.kokoroVoice;
+  }
+
   function speak(text, { onDone } = {}) {
-    if (state.muted || !window.speechSynthesis) { if (onDone) onDone(); return; }
+    if (state.muted) { if (onDone) onDone(); return; }
+
+    if (wantsKokoro()) {
+      const tok = ++localSpeakToken;
+      state.speaking = true;
+      updateStatus();
+      SakhaLocal.say(text, { lang: state.lang })
+        .then(() => {
+          if (tok !== localSpeakToken) return;
+          state.speaking = false;
+          updateStatus();
+          if (onDone) onDone();
+        })
+        .catch(() => { state.speaking = false; updateStatus(); });
+      return;
+    }
+
+    if (!window.speechSynthesis) { if (onDone) onDone(); return; }
     const clean = cleanForSpeech(text);
     if (!clean) { if (onDone) onDone(); return; }
     chunkSpeech(clean).forEach(c => ttsQueue.push(c));
@@ -419,6 +450,8 @@ ${ctx}`;
   }
 
   function stopSpeaking() {
+    localSpeakToken++;
+    if (window.SakhaLocal) SakhaLocal.stopSay();
     ttsToken++;
     ttsQueue = [];
     ttsDoneCallback = null;
@@ -493,8 +526,49 @@ ${ctx}`;
   }
 
   function startListening() {
-    if (!rec) { toast("This browser can't do speech recognition. Use Chrome or Edge, or type instead."); return; }
     if (state.busy) { toast("Still answering — give me a second."); return; }
+
+    if (state.engine === "local") {
+      if (!window.SakhaLocal || !SakhaLocal.asrReady()) {
+        toast("Download the on-device models first, or switch back to the cloud engine.");
+        return;
+      }
+      stopSpeaking();
+      recWanted = true;
+      state.listening = true;
+      setMic(true);
+      updateStatus();
+      SakhaLocal.startListening({
+        lang: state.lang,
+        onLevel: setMeter,
+        onSpeechStart: () => stopSpeaking(),
+        onBargeIn: () => { state.speaking = false; updateStatus(); },
+        onThinking: () => { state.busy = true; updateStatus(); },
+        onFinal: (text) => {
+          state.listening = false; setMic(false); state.busy = false;
+          setMeter(0);
+          updateStatus();
+          if (text) send(text, true);
+          else if (state.handsFree) setTimeout(() => { if (state.handsFree) startListening(); }, 400);
+        },
+        onEmpty: () => {
+          state.listening = false; setMic(false); state.busy = false; updateStatus();
+          if (state.handsFree && recWanted) setTimeout(() => { if (recWanted) startListening(); }, 400);
+        },
+        onError: (e) => {
+          state.listening = false; setMic(false); state.busy = false; updateStatus();
+          toast("On-device recognition failed: " + (e && e.message ? e.message : "unknown error"));
+        },
+      }).catch((e) => {
+        state.listening = false; setMic(false); updateStatus();
+        toast(e && e.name === "NotAllowedError"
+          ? "Microphone blocked. Allow mic access in your browser."
+          : "Could not start the microphone: " + (e && e.message ? e.message : "unknown"));
+      });
+      return;
+    }
+
+    if (!rec) { toast("This browser can't do speech recognition. Use Chrome or Edge, or type instead."); return; }
     stopSpeaking();
     recWanted = true;
     recFinal = "";
@@ -506,7 +580,9 @@ ${ctx}`;
 
   function stopListening() {
     clearTimeout(recSilenceTimer);
+    if (state.engine === "local" && window.SakhaLocal) SakhaLocal.stopListening();
     if (rec) { try { rec.stop(); } catch (e) {} }
+    setMeter(0);
   }
 
   function toggleMic() {
@@ -627,6 +703,13 @@ ${ctx}`;
     document.body.dataset.state = cls || "idle";
   }
 
+  function setMeter(rms) {
+    const el = $("#micMeter");
+    if (!el) return;
+    const pct = Math.min(100, Math.round(Math.sqrt(Math.max(0, rms)) * 240));
+    el.style.width = pct + "%";
+  }
+
   function setMic(on) {
     const b = $("#micBtn");
     b.classList.toggle("on", on);
@@ -641,6 +724,94 @@ ${ctx}`;
     t.classList.add("show");
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => t.classList.remove("show"), 4200);
+  }
+
+  /* ---------------- on-device engine controls ---------------- */
+  function reflectEngine() {
+    const sel = $("#engineSelect");
+    if (!sel) return;
+    sel.value = state.engine;
+    sel.classList.toggle("on-device", state.engine === "local");
+    const note = $("#engineNote");
+    if (note) {
+      note.textContent = state.engine === "local"
+        ? "Whisper hears you, Kokoro speaks, Qwen thinks — all inside this browser. Open weights, no key, no quota."
+        : "Cloud mode uses your browser's own voice and a shared free model.";
+    }
+    const brain = $("#localBrain");
+    if (brain) brain.checked = !!state.localBrain;
+
+    const kok = $("#kokoroVoice");
+    if (kok) {
+      if (state.kokoroVoice === null) state.kokoroVoice = window.SakhaLocal ? SakhaLocal.hasWebGPU() : false;
+      kok.checked = !!state.kokoroVoice;
+    }
+    const btn = $("#loadModels");
+    if (btn && !(window.SakhaLocal && SakhaLocal.asrReady())) {
+      let mb = 41;
+      if (state.kokoroVoice) mb += 86;
+      if (state.localBrain) mb += 480;
+      btn.textContent = `Download on-device models · ~${mb} MB`;
+    }
+  }
+
+  function setEngine(v) {
+    state.engine = v;
+    save();
+    reflectEngine();
+    if (state.listening) stopListening();
+    if (v === "local" && (!window.SakhaLocal || !SakhaLocal.asrReady() || !SakhaLocal.ttsReady())) {
+      toast("Downloading the on-device models first — about 165 MB, once.");
+      downloadModels();
+    }
+  }
+
+  let downloading = false;
+
+  async function downloadModels() {
+    if (!window.SakhaLocal) { toast("This browser can't run the on-device engine."); return; }
+    if (downloading) return;
+    downloading = true;
+    const btn = $("#loadModels"), bar = $("#modelBar"), stat = $("#modelStatus"), wrap = $(".bar");
+    btn.classList.add("busy");
+    btn.textContent = "Downloading…";
+    if (wrap) wrap.classList.add("show");
+
+    const onProgress = (p) => {
+      if (bar) bar.style.width = Math.max(2, p.pct) + "%";
+      const mb = p.total ? ` · ${(p.loaded / 1048576).toFixed(0)}/${(p.total / 1048576).toFixed(0)} MB` : "";
+      if (stat) stat.textContent = `${p.label} · ${p.pct}%${mb}`;
+    };
+
+    try {
+      await SakhaLocal.loadASR({ onProgress });
+      if (stat) stat.textContent = "Speech recognition ready…";
+      if (state.kokoroVoice) {
+        if (stat) stat.textContent = "Speech recognition ready · loading Kokoro voice…";
+        await SakhaLocal.loadTTS({ onProgress, lang: state.lang });
+      }
+      if (state.localBrain) {
+        if (stat) stat.textContent = "Voice ready · loading offline brain…";
+        await SakhaLocal.loadLLM({ onProgress });
+      }
+      if (bar) bar.style.width = "100%";
+      if (stat) {
+        const voice = SakhaLocal.ttsReady()
+          ? (SakhaLocal.ttsKind() === "kokoro" ? "Kokoro voice" : "MMS voice")
+          : "browser voice";
+        stat.textContent = "Ready · " + (SakhaLocal.device() === "webgpu" ? "WebGPU" : "CPU") +
+          " · " + voice + (state.localBrain && SakhaLocal.llmReady() ? " · offline brain" : "");
+      }
+      btn.textContent = "Voice models ready ✓";
+      toast("On-device voice is ready. It keeps working offline from now on.");
+    } catch (e) {
+      if (stat) stat.textContent = "Download failed: " + (e && e.message ? e.message : "unknown");
+      btn.textContent = "Retry download";
+      toast("Model download failed — check your connection and try again.");
+    } finally {
+      downloading = false;
+      btn.classList.remove("busy");
+    }
   }
 
   /* ---------------- main turn ---------------- */
@@ -693,20 +864,27 @@ ${ctx}`;
     };
 
     const cfg = providerConfig();
+    const useLocalBrain = state.engine === "local" && state.localBrain &&
+      window.SakhaLocal && SakhaLocal.llmReady();
 
     const attempt = async () => {
       acc = ""; speechBuf = ""; started = false;
       body.classList.add("typing");
       body.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
-      await callLLM(messages, onToken, cfg);
+      if (useLocalBrain) await SakhaLocal.generate(messages, onToken);
+      else await callLLM(messages, onToken, cfg);
     };
 
+    const localPause = (v) => { if (window.SakhaLocal) SakhaLocal.setPaused(v); };
+
     try {
-      await waitForCooldown(cfg);
+      localPause(true);
+      if (!useLocalBrain) await waitForCooldown(cfg);
       const askStart = Date.now();
       try {
         await attempt();
       } catch (e1) {
+        if (useLocalBrain) throw e1;
         if (e1.retryAfter) {
           // throttled: wait exactly as long as the service asks, then retry once
           if (cfg.keyed) throw e1;
@@ -723,7 +901,8 @@ ${ctx}`;
           body.innerHTML = mdToHtml(acc);
         }
       }
-      if (!cfg.keyed) cooldownUntil = askStart + FREE_GAP;
+      if (!cfg.keyed && !useLocalBrain) cooldownUntil = askStart + FREE_GAP;
+      localPause(false);   // answer is ready: let the student interrupt the speech
       body.classList.remove("typing");
       body.innerHTML = mdToHtml(acc);
       state.messages.push({ role: "assistant", content: acc });
@@ -736,7 +915,9 @@ ${ctx}`;
       }
     } catch (err) {
       body.classList.remove("typing");
-      const msg = cfg.keyed
+      const msg = useLocalBrain
+        ? "The offline brain (Qwen 0.5B) couldn't finish that answer — it is a small model and occasionally stalls. Try a shorter question, or switch the engine back to Cloud for deeper answers."
+        : cfg.keyed
         ? `I couldn't reach ${cfg.name} with the API key saved in this browser. Check that the key is valid and that the provider allows browser (CORS) requests, or switch back to the free public model in “Why is this free?”.`
         : "The free public model is busy right now — it allows roughly one reply every 45 seconds, and shared networks can be slower. Wait half a minute and ask again; your question is saved.";
       body.innerHTML = mdToHtml(msg);
@@ -746,6 +927,7 @@ ${ctx}`;
       save();
       toast("Free service busy — please retry in a few seconds.");
     } finally {
+      localPause(false);
       state.busy = false;
       updateStatus();
       // hands-free loop: listen again after the tutor finishes speaking
@@ -809,6 +991,20 @@ ${ctx}`;
     });
 
     $("#modeSelect").onchange = (e) => { state.mode = e.target.value; save(); };
+    $("#engineSelect").onchange = (e) => setEngine(e.target.value);
+    $("#loadModels").onclick = () => downloadModels();
+    $("#kokoroVoice").onchange = (e) => {
+      state.kokoroVoice = e.target.checked;
+      save();
+      reflectEngine();
+      if (e.target.checked && window.SakhaLocal && !SakhaLocal.ttsReady()) downloadModels();
+    };
+    $("#localBrain").onchange = (e) => {
+      state.localBrain = e.target.checked;
+      save();
+      reflectEngine();
+      if (e.target.checked) downloadModels();
+    };
     $("#langSelect").onchange = (e) => { state.lang = e.target.value; save(); if (state.listening) { stopListening(); } };
     $("#voiceSelect").onchange = (e) => { state.voiceName = e.target.value; save(); stopSpeaking(); speak("Hello, I am your voice tutor."); };
     $("#rate").oninput = (e) => { state.rate = parseFloat(e.target.value); $("#rateVal").textContent = state.rate.toFixed(1) + "x"; save(); };
@@ -879,6 +1075,12 @@ ${ctx}`;
     $("#rate").value = state.rate;
     $("#rateVal").textContent = state.rate.toFixed(1) + "x";
     $("#handsFree").checked = state.handsFree;
+    reflectEngine();
+    if (state.engine === "local" && window.SakhaLocal && SakhaLocal.asrReady() && SakhaLocal.ttsReady()) {
+      const stat = $("#modelStatus");
+      if (stat) stat.textContent = "Ready · cached in this browser";
+      $("#loadModels").textContent = "Voice models ready ✓";
+    }
 
     if (window.speechSynthesis) {
       loadVoices();
