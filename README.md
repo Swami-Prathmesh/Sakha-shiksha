@@ -35,6 +35,49 @@ Six answer modes: **Explain simply**, **Exam answer**, **Solve numerical**,
 tutor grounds its answer in the matching course notes bundled in
 `assets/knowledge.js`.
 
+## Two engines: cloud and on-device
+
+The sidebar has a **Voice engine** switch. Both are free; they trade speed for privacy.
+
+| | Cloud engine (default) | On-device engine |
+|---|---|---|
+| Speech → text | Browser Web Speech API | **Whisper** (`whisper-tiny` on CPU, `whisper-base` on GPU) |
+| Text → speech | Browser speech synthesis | **Kokoro 82M** (optional) or the browser voice |
+| Reasoning | Shared keyless model | Cloud model, or **Qwen2.5 0.5B** offline |
+| Internet needed | Yes | No, once the models are cached |
+| Your audio leaves the device | To the browser's speech service | Never |
+| Speed | Instant | Seconds — it runs on your CPU/GPU |
+
+Everything on-device is open-weight, downloaded from Hugging Face on first use and
+cached by the browser. No key, no quota, no server:
+
+| Model | Purpose | Size | Licence |
+|---|---|---|---|
+| `onnx-community/whisper-tiny` | speech to text (CPU) | ~41 MB | MIT |
+| `onnx-community/whisper-base` | speech to text (WebGPU) | ~77 MB | MIT |
+| `onnx-community/Kokoro-82M-v1.0-ONNX` | text to speech, 24 kHz | ~86 MB | Apache-2.0 |
+| `onnx-community/Qwen2.5-0.5B-Instruct` | offline reasoning | ~480 MB | Apache-2.0 |
+
+Run through `@huggingface/transformers` (transformers.js) and `kokoro-js` from jsDelivr,
+entirely in the browser via WebAssembly or WebGPU.
+
+### What the on-device mode actually feels like
+
+Measured in a throttled headless Chrome with no GPU, so treat these as worst-case:
+
+- Whisper-tiny: ~15 s to transcribe 3 s of audio. A normal laptop is several times
+  faster; a WebGPU machine much faster still.
+- Kokoro, q8 on CPU: ~48 s to synthesise a 5 s sentence. This is why Kokoro is
+  **off by default on CPU-only machines** — you still get on-device *listening*,
+  with the browser's own voice for speaking, and the download stays at 41 MB.
+- The offline brain is a 0.5B model. It is fine for definitions, formulas and
+  short explanations, and weak at multi-step reasoning. The cloud model is better;
+  use the offline brain when there is no internet.
+
+GitHub Pages cannot send COOP/COEP headers, so `SharedArrayBuffer` is unavailable
+and ONNX Runtime Web runs single-threaded. That is the main reason on-device is
+slower than a native app, and it is a hosting limitation, not a bug.
+
 ## How it stays free and unlimited
 
 | Part | Technology | Cost |
@@ -108,6 +151,7 @@ Notes are injected into the prompt as grounding context, not read out verbatim.
 index.html               UI shell
 assets/style.css         design system
 assets/app.js            speech I/O, streaming LLM call, retrieval, UI logic
+assets/local.js          on-device engine: Whisper, Kokoro, Qwen, VAD, duplex loop
 assets/knowledge.js      curriculum knowledge base (30+ topic notes)
 sw.js                    offline shell cache
 manifest.webmanifest     installable PWA
@@ -124,6 +168,7 @@ the question text sent to the model to generate an answer.
 - Add solved previous-year papers per university (AKTU, VTU, Anna University, SPPU)
 - A spaced-repetition queue that re-asks topics you got wrong in quiz mode
 - Optional Sarvam `saarika` ASR / `bulbul` TTS for Indic-language voices
+- Streaming Kokoro synthesis so the first sentence plays while the rest generates
 
 ## License
 
