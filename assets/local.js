@@ -280,11 +280,19 @@ window.SakhaLocal = (function () {
     st.loading.llm = (async () => {
       const lib = await loadLib();
       const device = await pickDevice();
-      const dtype = device === "webgpu" ? "q4f16" : "q4";
-      st.llm = await lib.pipeline("text-generation", LLM_MODEL, {
-        dtype, device, progress_callback: progressReporter("Offline brain", onProgress),
-      });
-      return st.llm;
+      const attempts = device === "webgpu" ? ["q4f16", "q4"] : ["q4", "q8"];
+      let lastErr = null;
+      for (const dtype of attempts) {
+        try {
+          st.llm = await lib.pipeline("text-generation", LLM_MODEL, {
+            dtype, device, progress_callback: progressReporter("Offline brain", onProgress),
+          });
+          return st.llm;
+        } catch (e) {
+          lastErr = e;   // some runtimes lack int4 kernels: try the next precision
+        }
+      }
+      throw lastErr || new Error("llm-load-failed");
     })().catch((e) => {
       st.errors.llm = e;
       st.loading.llm = null;
