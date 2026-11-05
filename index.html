@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en-IN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Sakha Shiksha — Free AI Voice Tutor for BTech (AI &amp; Data Science)</title>
+<meta name="description" content="Talk to a free AI voice tutor for BTech AI & Data Science: Theory of Computation, Computer Networks, AI, Data Science. No login, no API key, unlimited questions." />
+<meta name="theme-color" content="#0b1020" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2" rel="stylesheet" />
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body data-state="idle">
+
+<header class="top">
+  <div class="brand">
+    <div class="mark">स</div>
+    <div class="brandtext">
+      <h1>Sakha Shiksha</h1>
+      <p>Your study friend · BTech AI &amp; Data Science</p>
+    </div>
+  </div>
+  <div class="topactions">
+    <button id="aboutBtn" class="ghost">Why is this free?</button>
+    <button id="exportBtn" class="ghost">Save notes</button>
+    <button id="newBtn" class="ghost">New session</button>
+  </div>
+</header>
+
+<main class="shell">
+  <aside class="side">
+    <div class="sideblock">
+      <h2>Subject</h2>
+      <div id="subjectChips" class="chips"></div>
+    </div>
+
+    <div class="sideblock">
+      <h2>Answer mode</h2>
+      <select id="modeSelect" aria-label="Answer mode"></select>
+      <p class="hint">Switch to “Quiz me” or “Viva” to be tested instead of taught.</p>
+    </div>
+
+    <div class="sideblock">
+      <h2>Voice</h2>
+      <label class="row"><span>Speaking voice</span></label>
+      <select id="voiceSelect" aria-label="Speaking voice"></select>
+
+      <label class="row"><span>Speed</span><b id="rateVal">1.0x</b></label>
+      <input id="rate" type="range" min="0.6" max="1.5" step="0.1" value="1" />
+
+      <label class="row"><span>I speak</span></label>
+      <select id="langSelect" aria-label="Recognition language">
+        <option value="en-IN">English (India)</option>
+        <option value="en-US">English (US)</option>
+        <option value="en-GB">English (UK)</option>
+        <option value="hi-IN">हिन्दी</option>
+        <option value="mr-IN">मराठी</option>
+        <option value="ta-IN">தமிழ்</option>
+        <option value="te-IN">తెలుగు</option>
+        <option value="bn-IN">বাংলা</option>
+        <option value="gu-IN">ગુજરાતી</option>
+        <option value="kn-IN">ಕನ್ನಡ</option>
+        <option value="ml-IN">മലയാളം</option>
+        <option value="pa-IN">ਪੰਜਾਬੀ</option>
+      </select>
+
+      <label class="check">
+        <input type="checkbox" id="handsFree" checked />
+        <span>Hands-free conversation</span>
+      </label>
+      <button id="muteBtn" class="ghost wide">Mute</button>
+    </div>
+  </aside>
+
+  <section class="stage">
+    <div class="stagehead">
+      <div>
+        <span class="label">Now studying</span>
+        <strong id="currentSubject">General</strong>
+      </div>
+      <div id="status" class="status">Ready</div>
+    </div>
+
+    <div id="chat" class="chat" aria-live="polite"></div>
+    <div id="liveTranscript" class="live"></div>
+    <div id="suggestions" class="suggestions"></div>
+
+    <div class="dock">
+      <button id="micBtn" class="mic" aria-pressed="false" aria-label="Ask by voice">
+        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+          <path fill="currentColor" d="M12 15a3.5 3.5 0 0 0 3.5-3.5V6a3.5 3.5 0 1 0-7 0v5.5A3.5 3.5 0 0 0 12 15Zm6-3.5a6 6 0 0 1-5 5.92V20h3v2H8v-2h3v-2.58a6 6 0 0 1-5-5.92h2a4 4 0 0 0 8 0Z"/>
+        </svg>
+        <span class="pulse"></span>
+      </button>
+
+      <form id="composer" class="composer" autocomplete="off">
+        <input id="textInput" type="text" placeholder="Or type your question…" aria-label="Type your question" />
+        <button type="submit" class="send" aria-label="Send">→</button>
+      </form>
+
+      <button id="stopBtn" class="stop" title="Stop talking and listening">Stop</button>
+    </div>
+    <p class="miclabel" id="micLabel">Ask by voice</p>
+  </section>
+</main>
+
+<div id="toast" class="toast" role="status"></div>
+
+<div id="aboutModal" class="modal">
+  <div class="modalbox">
+    <h2>Why this is free and unlimited</h2>
+    <p><strong>Voice in</strong> uses the speech recognition built into your browser (Web Speech API). <strong>Voice out</strong> uses your browser's speech synthesis. Both run on your device's browser — there is no account, no API key and no per-minute billing, so talking never costs anything and never runs out.</p>
+    <p><strong>The brain</strong> is an open, keyless text model served by Pollinations. No sign-up, no card, no token. Because it is a shared public service it allows about <strong>one reply every 45 seconds</strong> — the tutor shows a countdown and answers on its own once the slot is free, so you never lose a question.</p>
+    <p><strong>Sarvam AI:</strong> their voice APIs are excellent and Indian-language first, but they require an API key with billing attached, so they are not “100% free and unlimited” for a public app. That is why this tutor uses the browser's own voice stack instead — nothing to pay, ever.</p>
+    <p><strong>Privacy:</strong> your chat is saved only in this browser's local storage. Nothing is uploaded anywhere except your question text, which goes to the model to generate an answer.</p>
+    <details class="keybox">
+      <summary>Optional: use your own free API key for faster replies</summary>
+      <p class="tiny">Only if you already have a key. It is stored in this browser only and sent straight to that provider. Groq and OpenRouter both give free keys without a card; Sarvam gives free credits and Indian-language models.</p>
+      <select id="keyProvider" aria-label="Provider">
+        <option value="pollinations">Free public model (no key needed)</option>
+        <option value="groq">Groq — free tier</option>
+        <option value="openrouter">OpenRouter — free models</option>
+        <option value="sarvam">Sarvam AI — sarvam-m</option>
+      </select>
+      <input id="keyInput" type="password" placeholder="Paste API key (optional)" aria-label="API key" autocomplete="off" />
+      <div class="keyactions">
+        <button id="saveKey" class="ghost">Use this key</button>
+        <button id="clearKey" class="ghost">Remove key</button>
+      </div>
+    </details>
+    <p class="tiny">Best on Chrome or Edge on desktop and Android. iPhone Safari supports speaking answers; typing always works.</p>
+    <button id="closeAbout" class="ghost wide">Got it</button>
+  </div>
+</div>
+
+<script src="assets/knowledge.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
