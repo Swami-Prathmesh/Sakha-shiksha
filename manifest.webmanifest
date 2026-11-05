@@ -1,0 +1,17 @@
+{
+  "name": "Sakha Shiksha — Free AI Voice Tutor",
+  "short_name": "Sakha Shiksha",
+  "description": "Free, unlimited AI voice tutor for BTech AI & Data Science students.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0a0e1a",
+  "theme_color": "#0b1020",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%235eead4'/%3E%3Ctext x='50%25' y='58%25' font-size='300' text-anchor='middle' font-family='serif' fill='%23061219'%3E%E0%A4%B5%E0%A4%BF%3C/text%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
