@@ -351,3 +351,26 @@ input[type=range]::-webkit-slider-thumb{
 #keyInput:focus{border-color:rgba(94,234,212,.5)}
 .keyactions{display:flex;gap:8px;margin-top:9px}
 .keyactions .ghost{flex:1;margin:0}
+
+/* ---------- on-device engine panel ---------- */
+.meter{
+  height:6px;border-radius:6px;background:rgba(255,255,255,.07);
+  overflow:hidden;margin:12px 0 10px;border:1px solid var(--line);
+}
+.meter i{
+  display:block;height:100%;width:0%;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));
+  transition:width .07s linear;
+}
+.bar{
+  height:5px;border-radius:5px;background:rgba(255,255,255,.07);
+  overflow:hidden;margin:10px 0 6px;display:none;
+}
+.bar.show{display:block}
+.bar i{
+  display:block;height:100%;width:0%;
+  background:linear-gradient(90deg,var(--accent),#8ff3ff,var(--accent2));
+  transition:width .25s ease;
+}
+#loadModels.busy{opacity:.7;cursor:progress}
+#engineSelect.on-device{border-color:rgba(94,234,212,.5);color:#dffff8}
