@@ -70,6 +70,30 @@
       </label>
       <button id="muteBtn" class="ghost wide">Mute</button>
     </div>
+
+    <div class="sideblock">
+      <h2>Voice engine</h2>
+      <select id="engineSelect" aria-label="Voice engine">
+        <option value="cloud">Cloud — instant, needs internet</option>
+        <option value="local">On-device — private, works offline</option>
+      </select>
+      <p class="hint" id="engineNote">On-device runs Whisper, Kokoro and Qwen inside your browser. Open weights, no key, no quota.</p>
+
+      <div class="meter" title="Microphone level"><i id="micMeter"></i></div>
+
+      <label class="check">
+        <input type="checkbox" id="kokoroVoice" />
+        <span>Kokoro neural voice (best quality · 86 MB)</span>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="localBrain" />
+        <span>Offline brain (Qwen 0.5B · 480 MB)</span>
+      </label>
+
+      <button id="loadModels" class="ghost wide">Download on-device models</button>
+      <div class="bar"><i id="modelBar"></i></div>
+      <p class="hint" id="modelStatus">Not downloaded yet</p>
+    </div>
   </aside>
 
   <section class="stage">
@@ -111,6 +135,7 @@
     <h2>Why this is free and unlimited</h2>
     <p><strong>Voice in</strong> uses the speech recognition built into your browser (Web Speech API). <strong>Voice out</strong> uses your browser's speech synthesis. Both run on your device's browser — there is no account, no API key and no per-minute billing, so talking never costs anything and never runs out.</p>
     <p><strong>The brain</strong> is an open, keyless text model served by Pollinations. No sign-up, no card, no token. Because it is a shared public service it allows about <strong>one reply every 45 seconds</strong> — the tutor shows a countdown and answers on its own once the slot is free, so you never lose a question.</p>
+    <p><strong>On-device engine (optional):</strong> Whisper for speech to text, Kokoro 82M for text to speech and Qwen2.5 0.5B for reasoning are open-weight models from Hugging Face. They download once into your browser cache and then run locally — no key, no quota, no internet needed, and nothing you say leaves the device.</p>
     <p><strong>Sarvam AI:</strong> their voice APIs are excellent and Indian-language first, but they require an API key with billing attached, so they are not “100% free and unlimited” for a public app. That is why this tutor uses the browser's own voice stack instead — nothing to pay, ever.</p>
     <p><strong>Privacy:</strong> your chat is saved only in this browser's local storage. Nothing is uploaded anywhere except your question text, which goes to the model to generate an answer.</p>
     <details class="keybox">
@@ -134,6 +159,7 @@
 </div>
 
 <script src="assets/knowledge.js"></script>
+<script src="assets/local.js"></script>
 <script src="assets/app.js"></script>
 </body>
 </html>
